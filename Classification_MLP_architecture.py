@@ -11,25 +11,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class MLP_CE(nn.Module):
-    """
-    MLP with 3 hidden layers and a dropout layer.
-    The activation function used is a ReLU.
-    This MLP can classify if a seed is true or false (one seed at a time).
-
-    Args:
-        input_shape: number of features for 3 hits (one seed)
-        hidden_1: number of neurons for the first hidden layer
-        hidden_2: number of neurons for the second hidden layer
-        hidden_3: number of neurons for the third hidden layer
-        output_shape: 2 (0:False, 1:True)
-        p: dropout coefficient
-        activation: activation function (ReLU)
-
-    Returns:
-        Weither the seed is true (1) or false (0).
-
-
-    """
 
     def __init__(
         self,
@@ -72,9 +53,7 @@ class MLP_CE(nn.Module):
 
 
 def train_loop_CE(trainloader, model: MLP_CE, n_epochs: int, optimizer, criterion, lr: float, device=device):
-    """
-    Returns the trained model.
-    """
+    
     model = model.to(device)
     model.train()
 
@@ -102,9 +81,6 @@ def train_loop_CE(trainloader, model: MLP_CE, n_epochs: int, optimizer, criterio
 #"""""""""""""""""""""""""""""""""""""""""""""""""" TESTING """""""""""""""""""""""""""""""""""""""
 
 def running_classifier(testloader, model, device=device):
-    """
-    returns signal = true seeds found by the classifier
-    """
 
     model.eval()
 
