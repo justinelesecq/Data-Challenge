@@ -32,17 +32,6 @@ X_test_normed = scaler.transform(X_test)
 
 # ENTRAINEMENT FINAL :
 
-model_svm = SVC(
-    kernel="rbf",
-    C=0.8179499475211672,
-    gamma=0.012561043700013555,
-    class_weight="balanced",
-    probability=True,
-)
-model_svm.fit(X_train_normed, Y_train)
-
-y_proba = model_svm.predict_proba(X_test_normed)[:, 1]
-
 model_svm = SVC(kernel="rbf", C=0.8179499475211672, gamma=0.012561043700013555, class_weight="balanced", probability=True)
 model_svm.fit(X_train_normed, Y_train)
 

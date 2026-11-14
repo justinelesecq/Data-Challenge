@@ -1,3 +1,9 @@
+# '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+# """""""""""""""""""""""""""""""""" OPTIMISATION DES HYPERPARAMETRES DU MLP """"""""""""""""""""""""""""""""""""
+# '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+# Imports des librairies :
+
 import torch
 import pandas as pd
 import numpy as np
@@ -8,11 +14,12 @@ from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import StandardScaler
 from Classification_MLP_architecture import MLP_CE, train_loop_CE, running_classifier
 
+# Utilisation de GPU :
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-#"""""""""""""""""""""""""""""""""""""" CHARGEMENTS DES DONNÉES D'ENTREE ET DE TEST """"""""""""""""""""""""
+# """""""""""""""""""""""""""""""""""""" CHARGEMENTS DES DONNÉES D'ENTREE ET DE TEST """"""""""""""""""""""""
 
 data_train = pd.read_csv("data_train_clean.csv")
 data_test = pd.read_csv("data_test_clean.csv")
@@ -20,20 +27,20 @@ data_test = pd.read_csv("data_test_clean.csv")
 data_train = data_train.drop(columns=["Unnamed: 0"])
 data_test = data_test.drop(columns=["Unnamed: 0"])
 
-#"""""""""""""""""""""""""""""""""""""""""""""""""""""" ADD FEATURES """"""""""""""""""""""""""""""""""""""""""""""""
+# """"""""""""""""""""""""""""""""""""""""""""""""" FEATURE ENGINEERING """"""""""""""""""""""""""""""""""""""""""""""""
 
 def add_features(df):
     df = df.copy()
-    inc = df["income"].where(df["income"] > 0) * 1000      # income est en milliers de $
+    inc = df["income"].where(df["income"] > 0) * 1000      
     
     df["loan_to_income"]   = df["loan_amount"] / inc
     df["income_vs_msa"]    = inc / df["ffiec_msa_md_median_family_income"]
     df["loan_to_value_calc"] = df["loan_amount"] / df["property_value"]
     df["implied_value"]    = df["loan_amount"] / (df["loan_to_value_ratio"] / 100)
     df["value_gap"]        = df["implied_value"] / df["property_value"]
-    df["monthly_principal"] = df["loan_amount"] / df["loan_term"]      # loan_term en mois
-    df["pti_proxy"]        = df["monthly_principal"] / (inc / 12)      # proxy du payment-to-income
-    df["debt_amount"]      = df["debt_to_income_ratio"] * inc / 100    # dette mensuelle/annuelle implicite
+    df["monthly_principal"] = df["loan_amount"] / df["loan_term"]      
+    df["pti_proxy"]        = df["monthly_principal"] / (inc / 12)      
+    df["debt_amount"]      = df["debt_to_income_ratio"] * inc / 100    
     df["residual_income"]  = inc - df["loan_amount"] / (df["loan_term"] / 12)
     
     df["n_missing"] = df.isna().sum(axis=1)
@@ -42,16 +49,18 @@ def add_features(df):
 data_train_feat = add_features(data_train)
 data_test_feat = add_features(data_test)
 
-# 2) Pour chaque colonne numérique : conversion, indicateur de manquant, médiane
+# On enlève les NaN des nouvelles variables :
+
 new_cols = ["income_vs_msa", "loan_to_income", "pti_proxy", "debt_amount", "residual_income"]
 
 for col in new_cols:
-    data_train_feat[col + "_missing"] = data_train_feat[col].isnull().astype(int)  # 1) on note les manquants
-    data_train_feat[col] = data_train_feat[col].fillna(data_train_feat[col].median())   # 2) on remplit
+    data_train_feat[col + "_missing"] = data_train_feat[col].isnull().astype(int)  # 1) création d'une nouvelle colonne : indicateur de valeur manquante
+    data_train_feat[col] = data_train_feat[col].fillna(data_train_feat[col].median())   # 2) imputation par la médiane
 
 for col in new_cols:
     data_test_feat[col + "_missing"] = data_test_feat[col].isnull().astype(int) 
-    data_test_feat[col] = data_test_feat[col].fillna(data_train_feat[col].median()) 
+    data_test_feat[col] = data_test_feat[col].fillna(data_train_feat[col].median()) # médiane sur data_train pour éviter la fuite de données
+
 
 #"""""""""""""""""""""""""""""""""""""""""""""""" SEPARATION DES COVARIABLES ET DE LA VARIABLE CIBLE DANS LES DONNÉES D'ENTRAÎNEMENT """"""""""""""""""""""""""""""""""""""""
 
@@ -59,14 +68,13 @@ X_train = data_train_feat.drop(columns=["accepted", "id"])
 Y_train = data_train_feat["accepted"]
 X_test = data_test_feat.drop(columns=["id"])
 
-#"""""""""""""""""""""""""""""""""""""""""""""""" NORMALISATION DES DONNEES SI BESOIN """"""""""""""""""""""""""""""""""""""
+#"""""""""""""""""""""""""""""""""""""""""""""""" NORMALISATION DES DONNEES """"""""""""""""""""""""""""""""""""""
 
 scaler = StandardScaler()
 X_train_normed = scaler.fit_transform(X_train)
 X_test_normed = scaler.transform(X_test)
 
 #""""""""""""""""""""""""""""""""""""""""""""""" CONVERSION EN DATASET ET EN DATALOADER """"""""""""""""""""""""""""""""""""""""""""""""
-
 
 class TabularDataset(Dataset):
     def __init__(self, X, y=None):
@@ -88,6 +96,8 @@ test_ds  = TabularDataset(X_test_normed)
 train_loader = DataLoader(train_ds, batch_size=1000, shuffle=True)
 test_loader  = DataLoader(test_ds, batch_size=1000, shuffle=False)
 
+
+# """"""""""""""""""""""""""""" OPTUNA """""""""""""""""""""""""""""""""
 
 X_tr, X_val, y_tr, y_val = train_test_split(
     X_train_normed, Y_train, test_size=0.2, stratify=Y_train, random_state=42
@@ -135,10 +145,6 @@ print(study.best_value)
 print(study.best_params)
 print(study.best_trial.user_attrs["best_epoch"])
 
-
-# 0.8685812942698062
-#{'lr': 0.00032224714117548976, 'weight_decay': 2.1498645119039145e-05, 'p': 0.12611115086159516, 'batch_size': 256, 'h1': 128, 'h2': 64, 'h3': 128, 'h4': 64}
-#25
 
 # AVEC CLEAN ET ADD FEATURES :
 

@@ -1,3 +1,9 @@
+# '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+# """"""""""""""""""""""""""""""""""""" ENTRAINEMENT ET PREDICTIONS DU MLP """"""""""""""""""""""""""""""""""""""
+# '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+# Imports des librairies :
+
 import torch
 import numpy as np
 import pandas as pd
@@ -5,11 +11,12 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from Classification_MLP_architecture import MLP_CE, train_loop_CE, running_classifier
 
+# Utilisation de GPU :
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-#"""""""""""""""""""""""""""""""""""""" CHARGEMENTS DES DONNÉES D'ENTREE ET DE TEST """"""""""""""""""""""""
+# """""""""""""""""""""""""""""""""""""" CHARGEMENTS DES DONNÉES D'ENTREE ET DE TEST """"""""""""""""""""""""
 
 data_train = pd.read_csv("data_train_clean.csv")
 data_test = pd.read_csv("data_test_clean.csv")
@@ -17,20 +24,20 @@ data_test = pd.read_csv("data_test_clean.csv")
 data_train = data_train.drop(columns=["Unnamed: 0"])
 data_test = data_test.drop(columns=["Unnamed: 0"])
 
-#"""""""""""""""""""""""""""""""""""""""""""""""""""" ADD FEATURES """"""""""""""""""""""""""""""""""""""""""""""""
+# """""""""""""""""""""""""""""""""""""""""""""""""""" FEATURE ENGINEERING """"""""""""""""""""""""""""""""""""""""""""""""
 
 def add_features(df):
     df = df.copy()
-    inc = df["income"].where(df["income"] > 0) * 1000      # income est en milliers de $
+    inc = df["income"].where(df["income"] > 0) * 1000      
     
     df["loan_to_income"]   = df["loan_amount"] / inc
     df["income_vs_msa"]    = inc / df["ffiec_msa_md_median_family_income"]
     df["loan_to_value_calc"] = df["loan_amount"] / df["property_value"]
     df["implied_value"]    = df["loan_amount"] / (df["loan_to_value_ratio"] / 100)
     df["value_gap"]        = df["implied_value"] / df["property_value"]
-    df["monthly_principal"] = df["loan_amount"] / df["loan_term"]      # loan_term en mois
-    df["pti_proxy"]        = df["monthly_principal"] / (inc / 12)      # proxy du payment-to-income
-    df["debt_amount"]      = df["debt_to_income_ratio"] * inc / 100    # dette mensuelle/annuelle implicite
+    df["monthly_principal"] = df["loan_amount"] / df["loan_term"]      
+    df["pti_proxy"]        = df["monthly_principal"] / (inc / 12)      
+    df["debt_amount"]      = df["debt_to_income_ratio"] * inc / 100    
     df["residual_income"]  = inc - df["loan_amount"] / (df["loan_term"] / 12)
     
     df["n_missing"] = df.isna().sum(axis=1)
@@ -39,34 +46,32 @@ def add_features(df):
 data_train_feat = add_features(data_train)
 data_test_feat = add_features(data_test)
 
-#"""""""""""""""""""""""""""""""""""""""""""""" On enlève les NaN des nouvelles variables """"""""""""""""""""""""""""""""""""
+# On enlève les NaN des nouvelles variables :
 
-# 2) Pour chaque colonne numérique : conversion, indicateur de manquant, médiane
 new_cols = ["income_vs_msa", "loan_to_income", "pti_proxy", "debt_amount", "residual_income"]
 
 for col in new_cols:
-    data_train_feat[col + "_missing"] = data_train_feat[col].isnull().astype(int)  # 1) on note les manquants
-    data_train_feat[col] = data_train_feat[col].fillna(data_train_feat[col].median())   # 2) on remplit
+    data_train_feat[col + "_missing"] = data_train_feat[col].isnull().astype(int)  # 1) création d'une nouvelle colonne : indicateur de valeur manquante
+    data_train_feat[col] = data_train_feat[col].fillna(data_train_feat[col].median())   # 2) imputation par la médiane
 
 for col in new_cols:
     data_test_feat[col + "_missing"] = data_test_feat[col].isnull().astype(int) 
-    data_test_feat[col] = data_test_feat[col].fillna(data_train_feat[col].median()) 
+    data_test_feat[col] = data_test_feat[col].fillna(data_train_feat[col].median()) # médiane sur data_train pour éviter la fuite de données
 
 
-#"""""""""""""""""""""""""""""""""""""""""""""""" SEPARATION DES COVARIABLES ET DE LA VARIABLE CIBLE DANS LES DONNÉES D'ENTRAÎNEMENT """"""""""""""""""""""""""""""""""""""""
+# """""""""""""""""""""""""""""""""""""""""""""""" SEPARATION DES COVARIABLES ET DE LA VARIABLE CIBLE DANS LES DONNÉES D'ENTRAÎNEMENT """"""""""""""""""""""""""""""""""""""""
 
 X_train = data_train_feat.drop(columns=["accepted", "id"])
 Y_train = data_train_feat["accepted"]
 X_test = data_test_feat.drop(columns=["id"])
 
-#"""""""""""""""""""""""""""""""""""""""""""""""" NORMALISATION DES DONNEES SI BESOIN """"""""""""""""""""""""""""""""""""""
+# """""""""""""""""""""""""""""""""""""""""""""""" NORMALISATION DES DONNEES """"""""""""""""""""""""""""""""""""""
 
 scaler = StandardScaler()
 X_train_normed = scaler.fit_transform(X_train)
 X_test_normed = scaler.transform(X_test)
 
-#""""""""""""""""""""""""""""""""""""""""""""""" CONVERSION EN DATASET ET EN DATALOADER """"""""""""""""""""""""""""""""""""""""""""""""
-
+# """"""""""""""""""""""""""""""""""""""""""""""" CONVERSION EN DATASET ET EN DATALOADER """"""""""""""""""""""""""""""""""""""""""""""""
 
 class TabularDataset(Dataset):
     def __init__(self, X, y=None):
@@ -87,6 +92,7 @@ test_ds  = TabularDataset(X_test_normed)
 train_loader = DataLoader(train_ds, batch_size=256, shuffle=True)
 test_loader  = DataLoader(test_ds, batch_size=256, shuffle=False)
 
+# """"""""""""""""""""""""""""""""" ENTRAINEMENT """""""""""""""""""""""""""
 
 model_CE = MLP_CE(
         input_shape=X_train_normed.shape[1],
@@ -104,9 +110,9 @@ optimizer_CE = torch.optim.Adam(model_CE.parameters(), lr=0.00034998107070177746
 criterion = torch.nn.CrossEntropyLoss().to(device)
 
 model_trained = train_loop_CE(trainloader=train_loader, model = model_CE, n_epochs=23, optimizer=optimizer_CE, criterion=criterion, lr=0.00034998107070177746, device=device)
-torch.save(model_trained.state_dict(), "MLP_1")
+torch.save(model_trained.state_dict(), "MLP")
 
-print("c'est fini de s'entrainer")
+# """"""""""""""""""""""""""" PREDICTIONS """"""""""""""""""""""""""""
 
 y_proba = running_classifier(testloader=test_loader, model=model_trained, device=device)
 
@@ -114,9 +120,7 @@ submission = pd.DataFrame({
     "id": data_test["id"],
     "accepted": y_proba
 })
-submission.to_csv("submission_MLP_opt_clean_addfeatures.csv", index=False)
-
-print("c'est tout soumis")
+submission.to_csv("classification_submission_MLP_opt_clean_addfeatures.csv", index=False)
 
 
 # MLP_1 : epochs = 5, h1=256, h2=128, h3=64, h4=32, p=0, lr=1e-3, batch_size=200
