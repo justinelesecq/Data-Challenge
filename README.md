@@ -1,5 +1,5 @@
 # Data Challenge 
-Ce projet universitaire consiste en deux tâches d'apprentissage supervisé distinctes. 
+Ce dépôt contient un projet universitaire consistant en deux tâches d'apprentissage supervisé distinctes. 
 
 La première est une tâche de classification binaire ayant pour objectif de prédire si une demande de prêt immobilier est accordée (`accepted = 1`) ou refusée (`accepted = 0`).
 
