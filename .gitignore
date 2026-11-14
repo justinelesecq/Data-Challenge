@@ -1,8 +1,3 @@
 *.csv
 .ipynb_checkpoints/
 *.png
-.python-version
-README.md
-pyproject.toml
-src/
-uv.lock
