@@ -6,12 +6,17 @@ readme = "README.md"
 authors = [
     { name = "justinelesecq", email = "justinelesecq@yahoo.fr" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "matplotlib>=3.11.2",
-    "numpy>=2.5.4",
-    "pandas>=3.1.1",
-    "scikit-learn>=1.9.1",
+    "autogluon>=1.6.3",
+    "matplotlib",
+    "numpy",
+    "optuna>=5.0.0",
+    "pandas",
+    "scikit-learn",
+    "scipy>=1.18.1",
+    "torch>=2.10.0",
+    "xgboost>=3.3.0",
 ]
 
 [project.scripts]
@@ -24,5 +29,6 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "ipykernel>=7.4.0",
+    "jupyter>=1.1.1",
     "jupyterlab>=4.6.6",
 ]
